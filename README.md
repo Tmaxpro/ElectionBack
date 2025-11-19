@@ -58,32 +58,32 @@ Les tokens retournés par `/api/v1/admin/login` contiennent un `access_token` (c
   - Body JSON: `{ "title": "Titre", "candidates": ["Nom1", {"name":"Nom2","prenom":"Prénom"}] }`
   - Réponse 201: `{ "id": <election_id>, "title": "..." }`
 
-- `POST /api/v1/admin/elections/<int:election_id>/candidates`
+ - `POST /api/v1/admin/elections/<election_uid>/candidates`
   - Description: ajoute un candidat à l'élection.
   - Body JSON: `{ "name": "Nom", "prenom": "Prénom", "photo": "..." }`
   - Réponse 201: `{ "id": <candidate_id>, ... }`
 
-- `GET /api/v1/admin/elections/<int:election_id>/resultats`
+ - `GET /api/v1/admin/elections/<election_uid>/resultats`
   - Description: récupère les résultats (votes par candidat) pour l'élection.
   - Réponse 200: `{ "election_id": <id>, "results": [ {"candidate_id":1, "votes": 12}, ... ] }`
 
-- `POST /api/v1/admin/elections/<int:election_id>/tokens/create`
+ - `POST /api/v1/admin/elections/<election_uid>/tokens/create`
   - Description: importe un CSV (multipart/form-data field `file`) contenant des emails et crée des `VoteToken`.
   - CSV attendu: header `email` (ou `mail`).
   - Réponse 201: `{ "created": <n>, "errors": [...] }`
 
-- `POST /api/v1/admin/elections/<int:election_id>/tokens/send`
+ - `POST /api/v1/admin/elections/<election_uid>/tokens/send`
   - Description: envoie les emails de vote construits à partir des tokens (`FRONTEND_URL` est utilisé pour générer les liens).
   - Réponse: `{ "sent": <n>, "errors": [...] }`
 
 **Endpoints Public (vote)**
 
-- `GET /api/v1/elections/<int:election_id>/vote/<token_hash>`
+ - `GET /api/v1/elections/<election_uid>/vote/<token_hash>`
   - Description: retourne l'élection et la liste des candidats si `token_hash` est valide.
   - Réponse 200: `{ "election": {...}, "candidates": [ {...}, ... ] }`
   - Si token invalide: 403 ou comportement front-end (redirection vers `/`).
 
-- `POST /api/v1/elections/<int:election_id>/vote/<token_hash>`
+ - `POST /api/v1/elections/<election_uid>/vote/<token_hash>`
   - Description: enregistre un vote pour `candidate_id` et consomme le token.
   - Body JSON: `{ "candidate_id": <id> }`
   - Réponses:
