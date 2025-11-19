@@ -1,7 +1,22 @@
 from flask import jsonify, request
-from datetime import datetime
+from datetime import datetime, date
 from . import admin_bp
 from models import db, Election, Candidate
+
+def _parse_datetime(val):
+    if not val:
+        return None
+    if isinstance(val, (datetime, date)):
+        # if date, convert to datetime at midnight
+        return val if isinstance(val, datetime) else datetime(val.year, val.month, val.day)
+    # essayer ISO / "YYYY-MM-DD HH:MM:SS"
+    try:
+        return datetime.fromisoformat(val)
+    except Exception:
+        try:
+            return datetime.strptime(val, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            raise ValueError(f"Invalid datetime format: {val}")
 
 
 @admin_bp.route('/elections', methods=['GET'])
@@ -18,8 +33,11 @@ def create_election():
     data = request.get_json() or {}
     title = data.get('title')
     candidates = data.get('candidates', [])
-    start_at = data.get('start_datetime', False)
-    end_at = data.get('end_datetime', False)
+    try:
+        start_at = _parse_datetime(data.get('start_datetime', False))
+        end_at = _parse_datetime(data.get('end_datetime', False))
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
     if not title:
         return jsonify({'error': 'title is required'}), 400
     election = Election(title=title, start_at=start_at, end_at=end_at)
