@@ -14,9 +14,9 @@ def vote_get(election_uid, token_hash):
     election = Election.query.filter_by(uid=election_uid).first_or_404()
     now = datetime.utcnow()
     # Autoriser seulement si (start_at absent ou now >= start_at) ET (end_at absent ou now <= end_at)
-    #if (election.start_at and now < election.start_at) or (election.end_at and now > election.end_at):
+    if (election.start_at and now < election.start_at) or (election.end_at and now > election.end_at):
         # Return a JSON error with 403 so clients receive the message (204 must not include a body)
-        #return jsonify({'error': "Voting is not allowed outside the election period"}), 403
+        return jsonify({'error': "Voting is not allowed outside the election period"}), 403
 
     real_token = extract_token_from_obfuscated(token_hash)
     if not real_token:
@@ -33,8 +33,8 @@ def vote_post(election_uid, token_hash):
     election = Election.query.filter_by(uid=election_uid).first_or_404()
     now = datetime.utcnow()
     # Autoriser seulement si (start_at absent ou now >= start_at) ET (end_at absent ou now <= end_at)
-    #if (election.start_at and now < election.start_at) or (election.end_at and now > election.end_at):
-        #return jsonify({'error': "Voting is not allowed outside the election period"}), 403
+    if (election.start_at and now < election.start_at) or (election.end_at and now > election.end_at):
+        return jsonify({'error': "Voting is not allowed outside the election period"}), 403
 
     real_token = extract_token_from_obfuscated(token_hash)
     if not real_token:

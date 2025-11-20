@@ -89,7 +89,7 @@ def create_candidate(election_uid):
             filename = secure_filename(file.filename)
             ext = filename.rsplit('.', 1)[1].lower()
             new_filename = f"{uuid.uuid4()}.{ext}"
-            upload_folder = current_app.config.get('UPLOAD_FOLDER', os.path.join(current_app.root_path, 'uploads'))
+            upload_folder = os.path.join(current_app.root_path, 'uploads')
             os.makedirs(upload_folder, exist_ok=True)
             file_path = os.path.join(upload_folder, new_filename)
             file.save(file_path)
@@ -193,5 +193,5 @@ def list_voters(election_uid):
     voters = VoteToken.query.filter_by(election_id=election.id).all()
     result = []
     for v in voters:
-        result.append({'email': v.email})
+        result.append({'email': v.email, 'token': v.token})
     return jsonify(result)
