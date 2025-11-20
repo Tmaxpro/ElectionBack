@@ -37,7 +37,7 @@ def list_voters(election_uid):
     voters = VoteToken.query.filter_by(election_id=election.id).all()
     result = []
     for v in voters:
-        result.append({'email': v.email, 'token': v.token, 'is_active': v.is_active})
+        result.append({'email': v.email, 'token': v.token, 'is_active': v.is_active, 'mailed': v.mailed})
     return jsonify(result)
 
 @admin_bp.route('/elections/<election_uid>/votants/<email>', methods=['DELETE'])

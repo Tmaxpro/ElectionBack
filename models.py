@@ -48,6 +48,7 @@ class VoteToken(db.Model):
     election_id = db.Column(db.Integer, db.ForeignKey('election.id', ondelete='CASCADE'), nullable=True)
     token = db.Column(db.String(36), unique=True, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
+    mailed = db.Column(db.Boolean, default=False)
 
     def __init__(self, *args, **kwargs):
         """Gérer l'unicité"""

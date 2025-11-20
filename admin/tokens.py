@@ -35,13 +35,15 @@ def create_tokens_csv(election_uid):
                 errors.append({'row': row, 'error': 'missing email'})
                 continue
             # create token
-            vtoken = VoteToken(email=email, election_id=election.id)
+            if not VoteToken.query.filter_by(email=email, election_id=election.id).first():
+                vtoken = VoteToken(email=email, election_id=election.id)
+                continue
             #vtoken._generate_unique_uuid()
             if vtoken:
                 created.append({'email': email, 'token': vtoken.token})
                 db.session.add(vtoken)
             else:
-                errors.append({'email': email, 'error': 'failed to generate token'})
+                errors.append({'email': email, 'error': 'token for this email already exists'})
 
         db.session.commit()
     
@@ -50,29 +52,33 @@ def create_tokens_csv(election_uid):
 
     return jsonify({'created': len(created), 'errors': errors}), 201
 
-@admin_bp.route('/elections/<election_uid>/tokens/create/email', methods=['GET'])
+@admin_bp.route('/elections/<election_uid>/tokens/create/email', methods=['POST'])
 def create_token_email(election_uid):
     """
     Create a single vote token for the specified email address provided as a query parameter.
     Example: /elections/<election_uid>/tokens/create/email
     """
-    email = request.args.get('email', '').strip()
+    data = request.get_json() or {}
+    email = data.get('email', '').strip()
     if not email:
         return jsonify({'error': 'email query parameter is required'}), 400
 
     election = Election.query.filter_by(uid=election_uid).first_or_404()
-    vtoken = VoteToken(email=email, election_id=election.id)
-    db.session.add(vtoken)
-    db.session.commit()
-
-    return jsonify({'email': email, 'token': vtoken.token}), 201
+    if not VoteToken.query.filter_by(email=email, election_id=election.id).first():
+        vtoken = VoteToken(email=email, election_id=election.id)
+        db.session.add(vtoken)
+        db.session.commit()
+        return jsonify({'email': email, 'token': vtoken.token}), 201
+    else:
+        return jsonify({'error': 'token for this email already exists'}), 400
 
 @admin_bp.route('/elections/<election_uid>/tokens/send', methods=['POST'])
 def send_tokens(election_uid):
     """
     Send mails to voters with their voting URLs.
     """
-    vote_tokens = VoteToken.query.all()
+    election = Election.query.filter_by(uid=election_uid).first_or_404()
+    vote_tokens = VoteToken.query.filter_by(election_id=election.id, mailed=False).all()
     sent = []
     errors = []
     for vote_token in vote_tokens:
@@ -82,7 +88,33 @@ def send_tokens(election_uid):
         vote_url = f"{frontend}/elections/{election_uid}/vote/{obf}"
         result = send_vote_email(to_email=vote_token.email, vote_url=vote_url)
         if result.get('success'):
-            sent.append({'email': vote_token.email, 'is_active': vote_token.is_active})
+            sent.append({'email': vote_token.email, 'is_active': vote_token.is_active, 'mailed': vote_token.mailed})
+            vote_token.mailed = True
+            db.session.commit()
+        else:
+            errors.append({'email': vote_token.email, 'error': result.get('error', 'unknown error')})
+    
+    return jsonify({'sent': len(sent), 'errors': errors}), 200
+
+@admin_bp.route('/elections/<election_uid>/tokens/send/all', methods=['POST'])
+def send_all_tokens(election_uid):
+    """
+    Send mails to all voters with their voting URLs, regardless of mailed status.
+    """
+    election = Election.query.filter_by(uid=election_uid).first_or_404()
+    vote_tokens = VoteToken.query.filter_by(election_id=election.id).all()
+    sent = []
+    errors = []
+    for vote_token in vote_tokens:
+        # Build the public vote URL using the configured frontend base URL and the election UID
+        frontend = current_app.config.get('FRONTEND_URL', '').rstrip('/')
+        obf = obfuscate_token(vote_token.token)
+        vote_url = f"{frontend}/elections/{election_uid}/vote/{obf}"
+        result = send_vote_email(to_email=vote_token.email, vote_url=vote_url)
+        if result.get('success'):
+            sent.append({'email': vote_token.email, 'is_active': vote_token.is_active, 'mailed': vote_token.mailed})
+            vote_token.mailed = True
+            db.session.commit()
         else:
             errors.append({'email': vote_token.email, 'error': result.get('error', 'unknown error')})
     
