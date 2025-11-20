@@ -18,7 +18,9 @@ class Election(db.Model):
     start_at = db.Column(db.DateTime, nullable=False)
     end_at = db.Column(db.DateTime, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    candidates = db.relationship('Candidate', backref='election', lazy=True)
+    # When an Election is deleted, cascade the deletes to candidates and tokens
+    candidates = db.relationship('Candidate', backref='election', lazy=True, cascade="all, delete-orphan")
+    tokens = db.relationship('VoteToken', backref='election', lazy=True, cascade="all, delete-orphan")
 
 class Candidate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -27,20 +29,23 @@ class Candidate(db.Model):
     name = db.Column(db.String(120), nullable=False)
     prenom = db.Column(db.String(65), nullable=False)
     photo = db.Column(db.String(255), nullable=False)
-    election_id = db.Column(db.Integer, db.ForeignKey('election.id'), nullable=False)
-    votes = db.relationship('Vote', backref='candidate', lazy=True)
+    # Add ON DELETE CASCADE on the FK and cascade deletes at ORM-level for votes
+    election_id = db.Column(db.Integer, db.ForeignKey('election.id', ondelete='CASCADE'), nullable=False)
+    votes = db.relationship('Vote', backref='candidate', lazy=True, cascade="all, delete-orphan")
 
 class Vote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     #user_id = db.Column(db.Integer, nullable=True)
-    election_id = db.Column(db.Integer, db.ForeignKey('election.id'), nullable=False)
-    candidate_id = db.Column(db.Integer, db.ForeignKey('candidate.id'), nullable=False)
+    # ensure votes are removed when election or candidate is deleted
+    election_id = db.Column(db.Integer, db.ForeignKey('election.id', ondelete='CASCADE'), nullable=False)
+    candidate_id = db.Column(db.Integer, db.ForeignKey('candidate.id', ondelete='CASCADE'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class VoteToken(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=False, nullable=False)
-    election_id = db.Column(db.Integer, db.ForeignKey('election.id'), nullable=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    # allow tokens to be removed if the election is deleted
+    election_id = db.Column(db.Integer, db.ForeignKey('election.id', ondelete='CASCADE'), nullable=True)
     token = db.Column(db.String(36), unique=True, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
 

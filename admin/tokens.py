@@ -1,3 +1,4 @@
+import token
 from flask import request, jsonify, current_app
 from . import admin_bp
 from models import Election, db, VoteToken
@@ -6,8 +7,8 @@ import csv
 import io
 
 
-@admin_bp.route('/elections/<election_uid>/tokens/create', methods=['POST'])
-def create_tokens(election_uid):
+@admin_bp.route('/elections/<election_uid>/tokens/create/csv', methods=['POST'])
+def create_tokens_csv(election_uid):
     """Import a CSV of voters and send each a voting URL containing their token.
 
     Expects a multipart/form-data file field named `file` (CSV) with a header column `email`.
@@ -49,6 +50,23 @@ def create_tokens(election_uid):
 
     return jsonify({'created': len(created), 'errors': errors}), 201
 
+@admin_bp.route('/elections/<election_uid>/tokens/create/email', methods=['GET'])
+def create_token_email(election_uid):
+    """
+    Create a single vote token for the specified email address provided as a query parameter.
+    Example: /elections/<election_uid>/tokens/create/email
+    """
+    email = request.args.get('email', '').strip()
+    if not email:
+        return jsonify({'error': 'email query parameter is required'}), 400
+
+    election = Election.query.filter_by(uid=election_uid).first_or_404()
+    vtoken = VoteToken(email=email, election_id=election.id)
+    db.session.add(vtoken)
+    db.session.commit()
+
+    return jsonify({'email': email, 'token': vtoken.token}), 201
+
 @admin_bp.route('/elections/<election_uid>/tokens/send', methods=['POST'])
 def send_tokens(election_uid):
     """
@@ -64,7 +82,7 @@ def send_tokens(election_uid):
         vote_url = f"{frontend}/elections/{election_uid}/vote/{obf}"
         result = send_vote_email(to_email=vote_token.email, vote_url=vote_url)
         if result.get('success'):
-            sent.append({'email': vote_token.email})
+            sent.append({'email': vote_token.email, 'is_active': vote_token.is_active})
         else:
             errors.append({'email': vote_token.email, 'error': result.get('error', 'unknown error')})
     

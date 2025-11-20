@@ -7,147 +7,191 @@ Base URL API: `/api/v1/`
 Prérequis
 - Python 3.8+
 
-# ElectionApp Backend — Documentation API
+# API Documentation
 
-Cette documentation décrit les routes disponibles et comment les utiliser pour l'API backend.
+Base URL: `/api/v1`
 
-**Base URL**: `/api/v1`
+Authentication (admin)
+- Admin endpoints require JWT `access_token` in the `Authorization` header:
 
-**Authentification (admin)**: Le namespace admin utilise JWT. Pour accéder aux endpoints protégés, envoyez l'`access_token` dans l'en-tête:
+  Authorization: Bearer <ACCESS_TOKEN>
 
-```
-Authorization: Bearer <ACCESS_TOKEN>
-```
+- Some endpoints accept a `refresh_token` to obtain a new `access_token`.
 
-Les tokens retournés par `/api/v1/admin/login` contiennent un `access_token` (courte durée) et un `refresh_token` (durée plus longue). Utilisez `/api/v1/admin/token/refresh` pour obtenir un nouvel access token.
+Notes
+- Default content-type is `application/json` unless `multipart/form-data` is specified (file uploads).
+- Response examples show typical JSON bodies and HTTP status codes.
 
-**Format**: JSON pour les requêtes et réponses sauf indication contraire.
+## Admin endpoints (prefix: `/api/v1/admin`)
 
-**Endpoints Admin**
+- POST `/login`
+  - Description: authenticate admin and return tokens.
+  - Request (JSON):
+    - {"username": string, "password": string}
+  - Response 200 (JSON):
+    - {"access_token": string, "refresh_token": string}
 
-- `POST /api/v1/admin/login`
-  - Description: authentifie un admin et retourne `access_token` + `refresh_token`.
-  - Body JSON: `{ "username": "...", "password": "..." }`
-  - Réponse 200: `{ "access_token": "...", "refresh_token": "..." }`
+- POST `/logout`
+  - Description: revoke a token (add to blocklist).
+  - Auth: `Authorization: Bearer <TOKEN>` or body {"token": string}
+  - Response 200: {"message": "token revoked"}
 
-- `POST /api/v1/admin/logout`
-  - Description: révoque le token fourni (ajoute le `jti` au blocklist côté serveur).
-  - En-tête: `Authorization: Bearer <TOKEN>` ou Body JSON `{ "token": "..." }`
-  - Réponse 200: `{ "message": "token revoked" }` ou 400 si token invalide.
+- GET `/me`
+  - Description: return current admin info.
+  - Auth: `Authorization: Bearer <ACCESS_TOKEN>`
+  - Response 200: {"id": int, "username": string}
 
-- `GET /api/v1/admin/me`
-  - Description: retourne l'admin courant (protégé par `access_token`).
-  - En-tête: `Authorization: Bearer <ACCESS_TOKEN>`
-  - Réponse 200: `{ "id": <id>, "username": "..." }`
+- POST `/token/refresh`
+  - Description: exchange a `refresh_token` for a new `access_token`.
+  - Request (JSON): {"refresh_token": string} or Authorization header with refresh token
+  - Response 200: {"access_token": string}
 
-- `POST /api/v1/admin/token/refresh`
-  - Description: échange un `refresh_token` contre un nouveau `access_token`.
-  - Body JSON: `{ "refresh_token": "..." }` ou `Authorization: Bearer <refresh_token>`
-  - Réponse 200: `{ "access_token": "..." }`
+- GET `/debug/jwt?token=<TOKEN>`
+  - Description: development helper to decode a JWT and return payload (do not expose in production).
+  - Response 200: {"payload": {...}}
 
-- `GET /api/v1/admin/debug/jwt`
-  - Description: (dev) décode un token passé en query param `?token=...` et renvoie le payload.
-  - Usage: `GET /api/v1/admin/debug/jwt?token=<TOKEN>`
+## Elections (admin)
 
-- `GET /api/v1/admin/elections`
-  - Description: liste les élections (protégé).
-  - Réponse 200: `{ "elections": [ {"id":1, "title":"..."}, ... ] }`
+- GET `/elections`
+  - Description: list all elections.
+  - Response 200 (JSON):
+    - [ {"uid": string, "title": string, "start_at": datetime|null, "end_at": datetime|null}, ... ]
 
-- `POST /api/v1/admin/elections`
-  - Description: crée une élection et ses candidats.
-  - Body JSON: `{ "title": "Titre", "candidates": ["Nom1", {"name":"Nom2","prenom":"Prénom"}] }`
-  - Réponse 201: `{ "id": <election_id>, "title": "..." }`
+- POST `/elections`
+  - Description: create an election (optionally with initial candidates).
+  - Request (JSON):
+    - {"title": string, "start_at": string optional (ISO datetime), "end_at": string optional, "candidates": optional array }
+    - `candidates` items: either `string` (name) or object {"name": string, "prenom": string, "photo": string}
+  - Response 201 (JSON): {"uid": string, "title": string}
 
- - `POST /api/v1/admin/elections/<election_uid>/candidates`
-  - Description: ajoute un candidat à l'élection.
-  - Body JSON: `{ "name": "Nom", "prenom": "Prénom", "photo": "..." }`
-  - Réponse 201: `{ "id": <candidate_id>, ... }`
+- DELETE `/elections/<election_uid>`
+  - Description: delete election and related objects (candidates, votes, tokens) — DB cascade expected.
+  - Response 200: {"message": "Election deleted"}
 
- - `GET /api/v1/admin/elections/<election_uid>/resultats`
-  - Description: récupère les résultats (votes par candidat) pour l'élection.
-  - Réponse 200: `{ "election_id": <id>, "results": [ {"candidate_id":1, "votes": 12}, ... ] }`
+- PUT/PATCH `/elections/<election_uid>`
+  - Description: update election fields.
+  - Request (JSON): {"title": string optional, "start_at": string optional, "end_at": string optional}
+  - Response 200: {"uid": string, "title": string, "start_at": datetime|null, "end_at": datetime|null}
 
- - `POST /api/v1/admin/elections/<election_uid>/tokens/create`
-  - Description: importe un CSV (multipart/form-data field `file`) contenant des emails et crée des `VoteToken`.
-  - CSV attendu: header `email` (ou `mail`).
-  - Réponse 201: `{ "created": <n>, "errors": [...] }`
+## Candidates (admin)
 
- - `POST /api/v1/admin/elections/<election_uid>/tokens/send`
-  - Description: envoie les emails de vote construits à partir des tokens (`FRONTEND_URL` est utilisé pour générer les liens).
-  - Réponse: `{ "sent": <n>, "errors": [...] }`
+- POST `/elections/<election_uid>/candidates`
+  - Description: add a candidate to an election.
+  - Request: either JSON or multipart/form-data
+    - JSON: {"name": string, "prenom": string optional, "photo": string optional (URL)}
+    - multipart/form-data: fields `name`, `prenom` (optional), `photo` (file) — file must be one of png/jpg/jpeg/gif
+  - Response 201: {"uid": string, "name": string, "prenom": string}
 
-**Endpoints Public (vote)**
+- GET `/elections/<election_uid>/candidates`
+  - Description: list candidates for an election.
+  - Response 200: [ {"uid": string, "name": string, "prenom": string, "photo": string}, ... ]
 
- - `GET /api/v1/elections/<election_uid>/vote/<token_hash>`
-  - Description: retourne l'élection et la liste des candidats si `token_hash` est valide.
-  - Réponse 200: `{ "election": {...}, "candidates": [ {...}, ... ] }`
-  - Si token invalide: 403 ou comportement front-end (redirection vers `/`).
+- PUT/PATCH `/elections/<election_uid>/candidates/<candidate_uid>`
+  - Description: update candidate metadata and/or photo.
+  - Request: JSON or multipart/form-data (same fields as POST candidate)
+  - Response 200: {"uid": string, "name": string, "prenom": string, "photo": string}
 
- - `POST /api/v1/elections/<election_uid>/vote/<token_hash>`
-  - Description: enregistre un vote pour `candidate_id` et consomme le token.
-  - Body JSON: `{ "candidate_id": <id> }`
-  - Réponses:
-    - 201: `{ "message": "vote recorded" }`
-    - 400: `candidate_id` manquant
-    - 403: token invalide
+- DELETE `/elections/<election_uid>/candidates/<candidate_uid>`
+  - Description: remove candidate (forbidden while election in progress).
+  - Response 200: {"message": "Candidate deleted"}
 
-**Exemples d'appels (curl)**
+## Voting tokens (admin)
 
-Login (récupère tokens):
+- POST `/elections/<election_uid>/tokens/create`
+  - Description: import tokens from CSV uploaded as multipart/form-data field `file`.
+  - CSV: must include column `email` (header). Optional columns may be ignored.
+  - Response 201: {"created": int, "errors": [ {"line": int, "error": string}, ... ] }
+
+- POST `/elections/<election_uid>/tokens/send`
+  - Description: send voting emails to generated tokens (uses `FRONTEND_URL` to build links).
+  - Response 200: {"sent": int, "errors": [ ... ]}
+
+- GET `/elections/<election_uid>/votants`
+  - Description: list voters/tokens for the election.
+  - Response 200: [ {"email": string, "token": string}, ... ]
+
+## Public voting endpoints (prefix: `/api/v1`)
+
+- GET `/elections/<election_uid>/vote/<token_hash>`
+  - Description: validate token and return election + candidates.
+  - Response 200: {"election": {"id": int, "title": string}, "candidates": [ {"id": int, "name": string, "prenom": string, "photo": string}, ... ]}
+  - Errors: 403 when token invalid or election outside date range.
+
+- POST `/elections/<election_uid>/vote/<token_hash>`
+  - Description: submit a vote and consume the token.
+  - Request (JSON): {"candidate_id": int}
+  - Response 201: {"message": "vote recorded"}
+  - Errors:
+    - 400: missing `candidate_id`
+    - 403: invalid/expired token or voting outside election period
+
+## Stats / results (admin)
+
+- GET `/elections/<election_uid>/results`
+  - Description: return vote counts per candidate for the election.
+  - Response 200: {"election": {"uid": string, "title": string}, "results": [ {"candidate_uid": string, "name": string, "prenom": string, "photo": string, "vote_count": int}, ... ]}
+
+- GET `/stats`
+  - Description: global stats listing per-election participation numbers.
+  - Response 200: [ {"election_uid": string, "title": string, "total_voters": int, "total_tokens": int, "votes_cast": int, "total_candidates": int, "participation_rate": float}, ... ]
+
+## Debug / utility
+
+- GET `/debug/routes` (app root)
+  - Description: list all registered routes (development helper).
+
+- GET `/debug/request-headers` (app root)
+  - Description: echo request headers (development helper).
+
+- GET `/uploads/<filename>` (app root)
+  - Description: serve uploaded files. Use `url_for('uploaded_file', filename=...)` to build public URLs for candidate photos.
+
+## Examples (curl)
+
+Login example:
 ```bash
 curl -X POST http://localhost:5000/api/v1/admin/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"yourpassword"}'
 ```
 
-Appel protégé (`/me`):
+Create election example:
 ```bash
-curl http://localhost:5000/api/v1/admin/me \
-  -H "Authorization: Bearer <ACCESS_TOKEN>"
-```
-
-Rafraîchir access token:
-```bash
-curl -X POST http://localhost:5000/api/v1/admin/token/refresh \
+curl -X POST http://localhost:5000/api/v1/admin/elections \
   -H "Content-Type: application/json" \
-  -d '{"refresh_token":"<REFRESH_TOKEN>"}'
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -d '{"title":"Scrutin 2025","start_at":"2025-11-20T12:00:00","end_at":"2025-11-20T18:00:00","candidates":[{"name":"Dupont","prenom":"Jean"}]}'
 ```
 
-Révocation d'un token:
+Vote example (public):
 ```bash
-curl -X POST http://localhost:5000/api/v1/admin/logout \
-  -H "Authorization: Bearer <TOKEN>"
+curl -X POST http://localhost:5000/api/v1/elections/<election_uid>/vote/<token_hash> \
+  -H "Content-Type: application/json" \
+  -d '{"candidate_id": 42}'
 ```
 
-**Variables d'environnement importantes**
+## Migrations
 
-- `DATABASE_URL` — SQLAlchemy URI (ex: `sqlite:///electionapp.db` ou Postgres `postgresql://user:pass@host:5432/db`).
-- `SECRET_KEY` — clé d'application.
-- `JWT_SECRET_KEY` — clé utilisée pour signer les JWT.
-- `JWT_ALGORITHM` — ex: `HS256`.
-- `JWT_EXP_DELTA_SECONDS` — durée (s) d'un access token.
-- `FRONTEND_URL` — URL du frontend pour construire les liens de vote.
-- Mail settings: `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASS`, `MAIL_FROM`, `MAIL_USE_TLS`.
+If you change models (example: add `ondelete` or cascade options), create and apply a migration:
 
-**Migrations**
-
-Si vous avez modifié les modèles (ex: ajout du `TokenBlocklist`), créez et appliquez les migrations :
-
-```powershell
-flask db migrate -m "add token blocklist"
+```bash
+flask db migrate -m "describe changes"
 flask db upgrade
 ```
 
-**Bonnes pratiques & sécurité**
+Note: Alembic may not detect `ondelete` changes automatically on some backends; you may need to edit the migration file to ALTER the foreign key constraints.
 
-- Protégez `.env` (ne pas le committer). Ajoutez-le à `.gitignore`.
-- Utilisez HTTPS en production et des clés fortes pour `SECRET_KEY` et `JWT_SECRET_KEY`.
-- Pour envois importants d'e-mails, utilisez une file (Celery, RQ) et des workers.
+## Environment variables
 
-**Options possibles (je peux aider)**
+- `DATABASE_URL`: SQLAlchemy URI (e.g. `sqlite:///electionapp.db` or Postgres URL)
+- `SECRET_KEY`, `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `JWT_EXP_DELTA_SECONDS`
+- `FRONTEND_URL` (used to build voting links)
+- Mail settings: `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASS`, `MAIL_FROM`, `MAIL_USE_TLS`
 
-- Générer un fichier OpenAPI / Swagger pour ces routes.
-- Ajouter des tests automatisés pour le flow JWT (login / refresh / revoke).
-- Créer des exemples Postman ou collection exportable.
+## Next steps I can help with
+
+- Generate OpenAPI/Swagger from these routes.
+- Add automated tests for important flows (login/refresh/revoke, vote flow).
+- Create Postman collection example.
 
 *** End API Documentation ***

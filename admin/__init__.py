@@ -7,4 +7,7 @@ from flask import Blueprint
 admin_bp = Blueprint('admin', __name__)
 
 # import submodules to register routes on the blueprint
-from . import auth, elections, tokens  # noqa: F401
+from . import auth, tokens  # noqa: F401
+
+# Register split route modules
+from . import utils, elections_routes, candidates, stats  # noqa: F401
