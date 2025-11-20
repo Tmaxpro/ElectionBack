@@ -2,8 +2,7 @@ import hmac
 import hashlib
 import smtplib
 from email.message import EmailMessage
-from flask import current_app
-
+from flask import current_app, jsonify
 
 def obfuscate_token(token: str) -> str:
     """Hash sécurisé du token UUID avec HMAC-SHA256.
@@ -27,12 +26,12 @@ def extract_token_from_obfuscated(hashed_token: str):
             return str(vote_token.token)
     return None
 
-
 def send_vote_email(to_email: str, vote_url: str, subject: str = None, body: str = None) -> dict:
     """Send an email containing the voting URL using SMTP settings from current_app.
 
     Returns a dict with `success` (bool) and `error` (str) on failure.
     """
+
     host = current_app.config.get('MAIL_HOST')
     port = int(current_app.config.get('MAIL_PORT', 587))
     user = current_app.config.get('MAIL_USER')
@@ -42,6 +41,7 @@ def send_vote_email(to_email: str, vote_url: str, subject: str = None, body: str
 
     if not host:
         return {'success': False, 'error': 'MAIL_HOST not configured'}
+    
 
     subject = subject or 'Votre lien de vote'
     body = body or f'Bonjour,\n\nVeuillez voter en suivant ce lien : {vote_url}\n\nCordialement.'

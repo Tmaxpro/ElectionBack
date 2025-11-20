@@ -1,5 +1,5 @@
-from flask import Flask, jsonify
-from flask import request
+from flask import Flask, jsonify, request, send_from_directory
+import os
 # Load environment variables from a local .env file so Config reads them via os.getenv
 from dotenv import load_dotenv
 load_dotenv()
@@ -11,6 +11,9 @@ from flask_cors import CORS
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+    # Configure upload folder (default: project/uploads) and ensure it exists
+    app.config.setdefault('UPLOAD_FOLDER', os.path.join(app.root_path, 'uploads'))
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     db.init_app(app)
     Migrate(app, db)
 
@@ -43,6 +46,12 @@ def create_app():
         headers = {k: v for k, v in request.headers.items()}
         return jsonify({'headers': headers})
 
+    # Serve uploaded files from the configured upload folder.
+    # Endpoint name `uploaded_file` allows `url_for('uploaded_file', filename=...)` calls.
+    @app.route('/uploads/<path:filename>')
+    def uploaded_file(filename):
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    
     from admin import admin_bp
     from public import public_bp
 

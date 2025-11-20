@@ -15,8 +15,8 @@ class Election(db.Model):
     # Public unique identifier (non-sequential) for safer external URLs
     uid = db.Column(db.String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
     title = db.Column(db.String(140), nullable=False)
-    start_at = db.Column(db.DateTime, nullable=True)
-    end_at = db.Column(db.DateTime, nullable=True)
+    start_at = db.Column(db.DateTime, nullable=False)
+    end_at = db.Column(db.DateTime, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     candidates = db.relationship('Candidate', backref='election', lazy=True)
 
@@ -40,7 +40,9 @@ class Vote(db.Model):
 class VoteToken(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=False, nullable=False)
+    election_id = db.Column(db.Integer, db.ForeignKey('election.id'), nullable=True)
     token = db.Column(db.String(36), unique=True, nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
 
     def __init__(self, *args, **kwargs):
         """Gérer l'unicité"""

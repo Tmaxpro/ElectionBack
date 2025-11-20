@@ -1,6 +1,6 @@
 from flask import request, jsonify, current_app
 from . import admin_bp
-from models import db, VoteToken
+from models import Election, db, VoteToken
 from utils import obfuscate_token, send_vote_email
 import csv
 import io
@@ -22,7 +22,8 @@ def create_tokens(election_uid):
         content = upload.stream.read().decode('utf-8')
     except Exception:
         return jsonify({'error': 'cannot read uploaded file'}), 400
-
+    
+    election = Election.query.filter_by(uid=election_uid).first_or_404()
     reader = csv.DictReader(io.StringIO(content))
     created = []
     errors = []
@@ -33,7 +34,7 @@ def create_tokens(election_uid):
                 errors.append({'row': row, 'error': 'missing email'})
                 continue
             # create token
-            vtoken = VoteToken(email=email)
+            vtoken = VoteToken(email=email, election_id=election.id)
             #vtoken._generate_unique_uuid()
             if vtoken:
                 created.append({'email': email, 'token': vtoken.token})
@@ -42,6 +43,9 @@ def create_tokens(election_uid):
                 errors.append({'email': email, 'error': 'failed to generate token'})
 
         db.session.commit()
+    
+    if not created:
+        return jsonify({'error': 'no tokens created', 'errors': errors}), 400
 
     return jsonify({'created': len(created), 'errors': errors}), 201
 
