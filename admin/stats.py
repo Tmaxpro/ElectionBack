@@ -9,7 +9,7 @@ def get_stats():
     elections = Election.query.order_by(Election.created_at.desc()).all()
     stats_list = []
     for e in elections:
-        total_voters = db.session.query(func.count(func.distinct(VoteToken.email))).filter(VoteToken.election_id == e.id).scalar() or 0
+        total_voters = db.session.query(func.count(func.distinct(VoteToken.phone_number))).filter(VoteToken.election_id == e.id).scalar() or 0
         total_tokens = db.session.query(func.count(VoteToken.id)).filter(VoteToken.election_id == e.id).scalar() or 0
         votes_cast = db.session.query(func.count(Vote.id)).filter(Vote.election_id == e.id).scalar() or 0
         total_candidates = db.session.query(func.count(Candidate.id)).filter(Candidate.election_id == e.id).scalar() or 0
@@ -37,16 +37,16 @@ def list_voters(election_uid):
     voters = VoteToken.query.filter_by(election_id=election.id).all()
     result = []
     for v in voters:
-        result.append({'email': v.email, 'token': v.token, 'is_active': v.is_active, 'mailed': v.mailed})
+        result.append({'phone': v.phone_number, 'token': v.token, 'is_active': v.is_active, 'sent': v.sent})
     return jsonify(result)
 
-@admin_bp.route('/elections/<election_uid>/votants/<email>', methods=['DELETE'])
-def delete_voters(election_uid, email):
+@admin_bp.route('/elections/<election_uid>/votants/<phone>', methods=['DELETE'])
+def delete_voters(election_uid, phone):
     """
-    Delete a vote token by its token string for the specified election.
+    Delete a vote token by phone number for the specified election.
     """
     election = Election.query.filter_by(uid=election_uid).first_or_404()
-    vtoken = VoteToken.query.filter_by(email=email, election_id=election.id).first()
+    vtoken = VoteToken.query.filter_by(phone_number=phone, election_id=election.id).first()
     if not vtoken:
         return jsonify({'error': 'token not found for this election'}), 404
 

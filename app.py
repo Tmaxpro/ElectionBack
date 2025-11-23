@@ -17,10 +17,13 @@ def create_app():
     db.init_app(app)
     Migrate(app, db)
 
+    # Configure CORS to allow the configured frontend origin and support cookies (credentials).
     # Use the configured `FRONTEND_URL` so the browser accepts cookies (credentials must have a concrete origin).
     frontend_origin = app.config.get('FRONTEND_TEST_URL')
     if frontend_origin:
         CORS(app, resources={r"/api/*": {"origins": frontend_origin}}, supports_credentials=True)
+    else:
+        CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
     # simple root
     @app.route('/')
@@ -61,4 +64,7 @@ if __name__ == '__main__':
     app = create_app()
     app.run(host='0.0.0.0', port=5000, debug=True)
 
+# Expose module-level `app` so `flask run` can discover the application
+# when the CLI imports this module. This ensures the registered routes
+# (including `/debug/routes` and `/api/v1/admin/...`) are available.
 app = create_app()

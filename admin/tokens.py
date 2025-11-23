@@ -1,8 +1,7 @@
-import token
 from flask import request, jsonify, current_app
 from . import admin_bp
 from models import Election, db, VoteToken
-from utils import obfuscate_token, send_vote_email
+from utils import obfuscate_token, send_vote_one_sms, send_vote_sms_bulk
 import csv
 import io
 
@@ -11,7 +10,7 @@ import io
 def create_tokens_csv(election_uid):
     """Import a CSV of voters and send each a voting URL containing their token.
 
-    Expects a multipart/form-data file field named `file` (CSV) with a header column `email`.
+    Expects a multipart/form-data file field named `file` (CSV) with a header column `phone` or `phone_number`.
     """
     # file required
     upload = request.files.get('file')
@@ -30,20 +29,20 @@ def create_tokens_csv(election_uid):
     errors = []
     with current_app.app_context():
         for row in reader:
-            email = (row.get('email') or row.get('mail') or '').strip()
-            if not email:
-                errors.append({'row': row, 'error': 'missing email'})
+            phone = (row.get('phone') or row.get('phone_number') or row.get('telephone') or '').strip()
+            if not phone:
+                errors.append({'row': row, 'error': 'missing phone number'})
                 continue
-            # create token
-            if not VoteToken.query.filter_by(email=email, election_id=election.id).first():
-                vtoken = VoteToken(email=email, election_id=election.id)
-                continue
-            #vtoken._generate_unique_uuid()
+            # create token by phone number
+            vtoken = VoteToken.query.filter_by(phone_number=phone, election_id=election.id).first()
+            if not vtoken:
+                vtoken = VoteToken(phone_number=phone, election_id=election.id)
+
             if vtoken:
-                created.append({'email': email, 'token': vtoken.token})
+                created.append({'phone': phone, 'token': vtoken.token})
                 db.session.add(vtoken)
             else:
-                errors.append({'email': email, 'error': 'token for this email already exists'})
+                errors.append({'phone': phone, 'error': 'token for this phone already exists'})
 
         db.session.commit()
     
@@ -52,70 +51,62 @@ def create_tokens_csv(election_uid):
 
     return jsonify({'created': len(created), 'errors': errors}), 201
 
-@admin_bp.route('/elections/<election_uid>/tokens/create/email', methods=['POST'])
-def create_token_email(election_uid):
+@admin_bp.route('/elections/<election_uid>/tokens/create/phone', methods=['POST'])
+def create_token_phone(election_uid):
     """
-    Create a single vote token for the specified email address provided as a query parameter.
-    Example: /elections/<election_uid>/tokens/create/email
+    Create a single vote token for the specified phone number provided in JSON body.
+    Example JSON body: {"phone": "2250554760285"}
     """
     data = request.get_json() or {}
-    email = data.get('email', '').strip()
-    if not email:
-        return jsonify({'error': 'email query parameter is required'}), 400
+    phone = (data.get('phone') or data.get('phone_number') or '').strip()
+    if not phone:
+        return jsonify({'error': 'phone parameter is required'}), 400
 
     election = Election.query.filter_by(uid=election_uid).first_or_404()
-    if not VoteToken.query.filter_by(email=email, election_id=election.id).first():
-        vtoken = VoteToken(email=email, election_id=election.id)
+    if not VoteToken.query.filter_by(phone_number=phone, election_id=election.id).first():
+        vtoken = VoteToken(phone_number=phone, election_id=election.id)
         db.session.add(vtoken)
         db.session.commit()
-        return jsonify({'email': email, 'token': vtoken.token}), 201
+        return jsonify({'phone': phone, 'token': vtoken.token}), 201
     else:
-        return jsonify({'error': 'token for this email already exists'}), 400
+        return jsonify({'error': 'token for this phone already exists'}), 400
 
 @admin_bp.route('/elections/<election_uid>/tokens/send', methods=['POST'])
 def send_tokens(election_uid):
     """
-    Send mails to voters with their voting URLs.
+    Send SMS to voters with their voting URLs.
     """
     election = Election.query.filter_by(uid=election_uid).first_or_404()
-    vote_tokens = VoteToken.query.filter_by(election_id=election.id, mailed=False).all()
+    vote_tokens = VoteToken.query.filter_by(election_id=election.id, sent=False).all()
     sent = []
     errors = []
     for vote_token in vote_tokens:
-        # Build the public vote URL using the configured frontend base URL and the election UID
-        frontend = current_app.config.get('FRONTEND_URL', '').rstrip('/')
-        obf = obfuscate_token(vote_token.token)
-        vote_url = f"{frontend}/elections/{election_uid}/vote/{obf}"
-        result = send_vote_email(to_email=vote_token.email, vote_url=vote_url)
+        result = send_vote_one_sms(vote_token, election_uid)
         if result.get('success'):
-            sent.append({'email': vote_token.email, 'is_active': vote_token.is_active, 'mailed': vote_token.mailed})
-            vote_token.mailed = True
+            vote_token.sent = True
             db.session.commit()
+            sent.append({'phone': vote_token.phone_number, 'is_active': vote_token.is_active, 'sent': vote_token.sent})
         else:
-            errors.append({'email': vote_token.email, 'error': result.get('error', 'unknown error')})
+            errors.append({'phone': vote_token.phone_number, 'error': result.get('error', 'unknown error')})
     
     return jsonify({'sent': len(sent), 'errors': errors}), 200
 
 @admin_bp.route('/elections/<election_uid>/tokens/send/all', methods=['POST'])
 def send_all_tokens(election_uid):
     """
-    Send mails to all voters with their voting URLs, regardless of mailed status.
+    Send SMS to all voters with their voting URLs, regardless of sent status.
     """
     election = Election.query.filter_by(uid=election_uid).first_or_404()
     vote_tokens = VoteToken.query.filter_by(election_id=election.id).all()
     sent = []
     errors = []
     for vote_token in vote_tokens:
-        # Build the public vote URL using the configured frontend base URL and the election UID
-        frontend = current_app.config.get('FRONTEND_URL', '').rstrip('/')
-        obf = obfuscate_token(vote_token.token)
-        vote_url = f"{frontend}/elections/{election_uid}/vote/{obf}"
-        result = send_vote_email(to_email=vote_token.email, vote_url=vote_url)
+        result = send_vote_one_sms(vote_token, election_uid)
         if result.get('success'):
-            sent.append({'email': vote_token.email, 'is_active': vote_token.is_active, 'mailed': vote_token.mailed})
-            vote_token.mailed = True
+            vote_token.sent = True
+            sent.append({'phone': vote_token.phone_number, 'is_active': vote_token.is_active, 'sent': vote_token.sent})
             db.session.commit()
         else:
-            errors.append({'email': vote_token.email, 'error': result.get('error', 'unknown error')})
+            errors.append({'phone': vote_token.phone_number, 'error': result.get('error', 'unknown error')})
     
     return jsonify({'sent': len(sent), 'errors': errors}), 200
