@@ -1,25 +1,38 @@
 alembic==1.17.2
-blinker==1.9.0
+bidict @ file:///croot/bidict_1754032828556/work
+blinker @ file:///croot/blinker_1737448726027/work
 certifi==2025.11.12
+cffi @ file:///home/task_176183215096628/conda-bld/cffi_1761832773152/work
 charset-normalizer==3.4.4
 click==8.3.1
-Flask==3.1.2
+cryptography @ file:///home/task_176193171464307/conda-bld/cryptography-split_1761931963077/work
+dnspython @ file:///home/task_176371823862131/conda-bld/dnspython_1763718251566/work
+eventlet @ file:///home/task_176243145704249/conda-bld/eventlet_1762432381813/work
+Flask @ file:///croot/flask_1756453126864/work
 flask-cors==6.0.1
 Flask-Migrate==4.1.0
-Flask-SQLAlchemy==3.1.1
-greenlet==3.2.4
+Flask-SocketIO @ file:///croot/flask-socketio_1749722687754/work
+Flask-SQLAlchemy @ file:///croot/flask-sqlalchemy_1712567272472/work
+greenlet @ file:///home/task_175740547998929/conda-bld/greenlet_1757405524152/work
+h11 @ file:///home/task_176193127072780/conda-bld/h11_1761931281921/work
 idna==3.11
-itsdangerous==2.2.0
-Jinja2==3.1.6
+itsdangerous @ file:///croot/itsdangerous_1716533337253/work
+Jinja2 @ file:///croot/jinja2_1741710844255/work
 Mako==1.3.10
-MarkupSafe==3.0.3
+MarkupSafe @ file:///croot/markupsafe_1738584038848/work
 psycopg2-binary==2.9.11
+pycparser @ file:///home/task_175749564075091/conda-bld/pycparser_1757496039511/work
 PyJWT==2.10.1
+pyOpenSSL @ file:///home/task_176216570767085/conda-bld/pyopenssl_1762166533250/work
 python-dotenv==1.2.1
+python-engineio @ file:///croot/python-engineio_1749570472991/work
+python-socketio @ file:///croot/python-socketio_1749573738987/work
 requests==2.32.5
 setuptools==80.9.0
-SQLAlchemy==2.0.44
-typing_extensions==4.15.0
+simple-websocket @ file:///croot/simple-websocket_1749547664212/work
+SQLAlchemy @ file:///croot/sqlalchemy_1756710012687/work
+typing_extensions @ file:///croot/typing_extensions_1756280817316/work
 urllib3==2.5.0
-Werkzeug==3.1.3
+Werkzeug @ file:///croot/werkzeug_1737448706492/work
 wheel==0.45.1
+wsproto @ file:///home/task_176371849299498/conda-bld/wsproto_1763718505342/work
