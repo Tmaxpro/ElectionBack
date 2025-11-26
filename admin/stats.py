@@ -31,7 +31,7 @@ def get_stats():
     return jsonify(stats_list), 200
 
 
-@admin_bp.route('/elections/<election_uid>/votants', methods=['GET'])
+@admin_bp.route('/elections/<election_uid>/votants', methods=['GET', 'OPTIONS'])
 def list_voters(election_uid):
     election = Election.query.filter_by(uid=election_uid).first_or_404()
     voters = VoteToken.query.filter_by(election_id=election.id).all()

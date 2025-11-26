@@ -4,7 +4,14 @@ from . import public_bp
 from models import Election, Candidate, Vote, VoteToken
 from utils import extract_token_from_obfuscated
 from models import db
+from extensions import socketio
+from flask_socketio import join_room, leave_room
 
+@socketio.on('join')
+def on_join(data):
+    room = data.get('election_uid')
+    if room:
+        join_room(room)
 
 @public_bp.route('/elections/<election_uid>/vote/<token_hash>', methods=['GET'])
 def vote_get(election_uid, token_hash):
@@ -68,4 +75,18 @@ def vote_post(election_uid, token_hash):
         vtoken.is_active = False
 
     db.session.commit()
+
+    # Emit real-time update
+    results = []
+    for c in election.candidates:
+        vote_count = Vote.query.filter_by(candidate_id=c.id).count()
+        results.append({
+            'candidate_uid': c.uid,
+            'name': c.name,
+            'prenom': getattr(c, 'prenom', ''),
+            'photo': getattr(c, 'photo', ''),
+            'vote_count': vote_count
+        })
+    socketio.emit('results_update', {'election_uid': election.uid, 'results': results}, to=election.uid)
+
     return jsonify({'message': 'vote recorded'}), 201

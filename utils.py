@@ -107,6 +107,27 @@ def send_vote_one_sms(vtoken, election_uid: str, flash: int = 0, titre: str = ""
     else:
         return {'success': False, 'error': result.get('error', result.get('status', 'unknown error'))}
 
+def get_accuse_sms(ref: str, dest: str) -> bool:
+    """Vérifie l'accusé de réception pour un SMS envoyé via l'API ACIM.
+
+    Utilise l'API `getAccuses` et retourne True uniquement si l'appel réussit et que le
+    SMS est considéré comme délivré par ACIM.
+    """
+    if not ref or not dest:
+        return False
+
+    smsclient = _create_sms_client()
+    delivery_info = smsclient.get_delivery_report(ref, dest)
+
+    if not isinstance(delivery_info, dict):
+        return False
+
+    if not delivery_info.get('success'):
+        return False
+
+    # Si l'appel est un succès, on vérifie que la plateforme signale la livraison effective.
+    return bool(delivery_info.get('delivered', False))
+
 def prepare_sms_bulk(vtokens: list, election_uid: str, flash: int) -> list:
     """Prépare une liste de numéros de téléphone pour l'envoi en masse.
 

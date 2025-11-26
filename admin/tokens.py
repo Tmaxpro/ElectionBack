@@ -1,7 +1,7 @@
 from flask import request, jsonify, current_app
 from . import admin_bp
 from models import Election, db, VoteToken
-from utils import obfuscate_token, send_vote_one_sms, send_vote_sms_bulk
+from utils import get_accuse_sms, obfuscate_token, send_vote_one_sms, send_vote_sms_bulk
 import csv
 import io
 
@@ -30,6 +30,12 @@ def create_tokens_csv(election_uid):
     with current_app.app_context():
         for row in reader:
             phone = (row.get('phone') or row.get('phone_number') or row.get('telephone') or row.get('numero') or '').strip()
+            
+            if phone.startswith('+225'):
+                phone = phone[1:]
+            elif not phone.startswith('225'):
+                phone = '225' + phone
+
             if not phone:
                 errors.append({'row': row, 'error': 'missing phone number'})
                 continue
@@ -59,6 +65,12 @@ def create_token_phone(election_uid):
     """
     data = request.get_json() or {}
     phone = (data.get('phone') or data.get('phone_number') or '').strip()
+
+    if phone.startswith('+225'):
+        phone = phone[1:]
+    elif not phone.startswith('225'):
+        phone = '225' + phone
+
     if not phone:
         return jsonify({'error': 'phone parameter is required'}), 400
 
@@ -82,12 +94,35 @@ def send_tokens(election_uid):
     errors = []
     for vote_token in vote_tokens:
         result = send_vote_one_sms(vote_token, election_uid)
-        if result.get('success'):
-            vote_token.sent = True
-            db.session.commit()
-            sent.append({'phone': vote_token.phone_number, 'is_active': vote_token.is_active, 'sent': vote_token.sent})
-        else:
+        if not result.get('success'):
             errors.append({'phone': vote_token.phone_number, 'error': result.get('error', 'unknown error')})
+            continue
+
+        ref = result.get('ref') if result.get('ref') not in (None, '', 'N/A') else None
+        dest = vote_token.phone_number
+        delivery_confirmed = False
+        ack_error = None
+
+        if ref:
+            delivery_confirmed = get_accuse_sms(ref, dest)
+            if not delivery_confirmed:
+                ack_error = 'accuse de reception indisponible'
+        else:
+            ack_error = 'reference sms indisponible'
+
+        vote_token.sent = True
+        db.session.commit()
+
+        sent.append({
+            'phone': vote_token.phone_number,
+            'is_active': vote_token.is_active,
+            'sent': vote_token.sent,
+            'delivery_confirmed': delivery_confirmed,
+            'ref': ref
+        })
+
+        if ack_error:
+            errors.append({'phone': vote_token.phone_number, 'error': ack_error, 'ref': ref})
     
     return jsonify({'sent': len(sent), 'errors': errors}), 200
 
@@ -102,11 +137,34 @@ def send_all_tokens(election_uid):
     errors = []
     for vote_token in vote_tokens:
         result = send_vote_one_sms(vote_token, election_uid)
-        if result.get('success'):
-            vote_token.sent = True
-            sent.append({'phone': vote_token.phone_number, 'is_active': vote_token.is_active, 'sent': vote_token.sent})
-            db.session.commit()
-        else:
+        if not result.get('success'):
             errors.append({'phone': vote_token.phone_number, 'error': result.get('error', 'unknown error')})
+            continue
+
+        ref = result.get('ref') if result.get('ref') not in (None, '', 'N/A') else None
+        dest = vote_token.phone_number
+        delivery_confirmed = False
+        ack_error = None
+
+        if ref:
+            delivery_confirmed = get_accuse_sms(ref, dest)
+            if not delivery_confirmed:
+                ack_error = 'accuse de reception indisponible'
+        else:
+            ack_error = 'reference sms indisponible'
+
+        vote_token.sent = True
+        db.session.commit()
+
+        sent.append({
+            'phone': vote_token.phone_number,
+            'is_active': vote_token.is_active,
+            'sent': vote_token.sent,
+            'delivery_confirmed': delivery_confirmed,
+            'ref': ref
+        })
+
+        if ack_error:
+            errors.append({'phone': vote_token.phone_number, 'error': ack_error, 'ref': ref})
     
     return jsonify({'sent': len(sent), 'errors': errors}), 200

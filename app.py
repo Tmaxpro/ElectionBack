@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 from config import Config
 from models import db
+from extensions import socketio
 from flask_migrate import Migrate
 from flask_cors import CORS
 
@@ -15,15 +16,16 @@ def create_app():
     app.config.setdefault('UPLOAD_FOLDER', os.path.join(app.root_path, 'uploads'))
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     db.init_app(app)
+    socketio.init_app(app)
     Migrate(app, db)
 
     # Configure CORS to allow the configured frontend origin and support cookies (credentials).
     # Use the configured `FRONTEND_URL` so the browser accepts cookies (credentials must have a concrete origin).
     frontend_origin = app.config.get('FRONTEND_TEST_URL')
-    if frontend_origin:
-        CORS(app, resources={r"/api/*": {"origins": frontend_origin}}, supports_credentials=True)
-    else:
-        CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
+    #if frontend_origin:
+        #CORS(app, resources={r"/api/*": {"origins": frontend_origin}}, supports_credentials=True)
+    #else:
+    CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
     # simple root
     @app.route('/')
@@ -62,7 +64,7 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
 
 # Expose module-level `app` so `flask run` can discover the application
 # when the CLI imports this module. This ensures the registered routes

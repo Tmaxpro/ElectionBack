@@ -18,6 +18,10 @@ class Config:
     MAIL_PASS = os.getenv('MAIL_PASS', '')
     MAIL_USE_TLS = os.getenv('MAIL_USE_TLS', 'true').lower() in ('1', 'true', 'yes')
     MAIL_FROM = os.getenv('MAIL_FROM', os.getenv('MAIL_USER', 'noreply@example.com'))
+    # SMS API credentials used by admin token sender
+    SMS_API_USERNAME = os.getenv('SMS_API_USERNAME', '')
+    SMS_API_TOKEN = os.getenv('SMS_API_TOKEN', '')
+    SMS_API_SENDER = os.getenv('SMS_API_SENDER', '')
     # Admin credentials fallback (for initial setup). Prefer creating Admin rows in DB.
     ADMIN_USER = os.getenv('ADMIN_USER', '')
     ADMIN_PASS = os.getenv('ADMIN_PASS', '')
