@@ -29,7 +29,7 @@ def create_tokens_csv(election_uid):
     errors = []
     with current_app.app_context():
         for row in reader:
-            phone = (row.get('phone') or row.get('phone_number') or row.get('telephone') or '').strip()
+            phone = (row.get('phone') or row.get('phone_number') or row.get('telephone') or row.get('numero') or '').strip()
             if not phone:
                 errors.append({'row': row, 'error': 'missing phone number'})
                 continue

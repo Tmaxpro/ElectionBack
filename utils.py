@@ -1,9 +1,16 @@
 import hmac
 import hashlib
 import smtplib
+import requests
 from email.message import EmailMessage
 from ACIMClient import ACIMSMSClient
 from flask import current_app
+
+def shorten(url):
+  base_url = 'http://tinyurl.com/api-create.php?url='
+  response = requests.get(base_url+url)
+  short_url = response.text
+  return short_url
 
 def obfuscate_token(token: str) -> str:
     """Hash sécurisé du token UUID avec HMAC-SHA256.
@@ -31,7 +38,8 @@ def generate_vote_url(vote_token, election_uid) -> str:
     frontend = current_app.config.get('FRONTEND_URL', '').rstrip('/')
     obf = obfuscate_token(vote_token.token)
     vote_url = f"{frontend}/elections/{election_uid}/vote/{obf}"
-    return vote_url
+    short_url = shorten(vote_url)
+    return short_url
 
 def generate_vote_message(vote_token, election_uid, body=None) -> str:
     if not body:

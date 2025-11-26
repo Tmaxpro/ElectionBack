@@ -97,18 +97,31 @@ Notes
 
 ## Voting tokens (admin)
 
-- POST `/elections/<election_uid>/tokens/create`
+- POST `/elections/<election_uid>/tokens/create/csv`
   - Description: import tokens from CSV uploaded as multipart/form-data field `file`.
-  - CSV: must include column `email` (header). Optional columns may be ignored.
-  - Response 201: {"created": int, "errors": [ {"line": int, "error": string}, ... ] }
+  - CSV: must include column `phone` or `phone_number` (header).
+  - Response 201: {"created": int, "errors": [ {"error": string, ...}, ... ] }
+
+- POST `/elections/<election_uid>/tokens/create/phone`
+  - Description: create a single token for a phone number.
+  - Request (JSON): {"phone": string}
+  - Response 201: {"phone": string, "token": string}
 
 - POST `/elections/<election_uid>/tokens/send`
-  - Description: send voting emails to generated tokens (uses `FRONTEND_URL` to build links).
+  - Description: send voting SMS to generated tokens that haven't been sent yet.
+  - Response 200: {"sent": int, "errors": [ ... ]}
+
+- POST `/elections/<election_uid>/tokens/send/all`
+  - Description: send voting SMS to all generated tokens (resend).
   - Response 200: {"sent": int, "errors": [ ... ]}
 
 - GET `/elections/<election_uid>/votants`
   - Description: list voters/tokens for the election.
-  - Response 200: [ {"email": string, "token": string}, ... ]
+  - Response 200: [ {"phone": string, "token": string, "is_active": bool, "sent": bool}, ... ]
+
+- DELETE `/elections/<election_uid>/votants/<phone>`
+  - Description: delete a voter token by phone number.
+  - Response 200: {"message": "Token deleted"}
 
 ## Public voting endpoints (prefix: `/api/v1`)
 
@@ -163,6 +176,14 @@ curl -X POST http://localhost:5000/api/v1/admin/elections \
   -d '{"title":"Scrutin 2025","start_at":"2025-11-20T12:00:00","end_at":"2025-11-20T18:00:00","candidates":[{"name":"Dupont","prenom":"Jean"}]}'
 ```
 
+Create tokens from CSV example:
+```bash
+curl -X POST http://localhost:5000/api/v1/admin/elections/<election_uid>/tokens/create/csv \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -F "file=@voters.csv"
+```
+(CSV file should have a `phone` column)
+
 Vote example (public):
 ```bash
 curl -X POST http://localhost:5000/api/v1/elections/<election_uid>/vote/<token_hash> \
@@ -186,7 +207,8 @@ Note: Alembic may not detect `ondelete` changes automatically on some backends; 
 - `DATABASE_URL`: SQLAlchemy URI (e.g. `sqlite:///electionapp.db` or Postgres URL)
 - `SECRET_KEY`, `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `JWT_EXP_DELTA_SECONDS`
 - `FRONTEND_URL` (used to build voting links)
-- Mail settings: `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASS`, `MAIL_FROM`, `MAIL_USE_TLS`
+- SMS settings: `SMS_API_USERNAME`, `SMS_API_TOKEN`, `SMS_API_SENDER`
+- Mail settings (legacy/optional): `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASS`, `MAIL_FROM`, `MAIL_USE_TLS`
 
 ## Next steps I can help with
 
